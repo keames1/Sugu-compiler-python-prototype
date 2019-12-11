@@ -14,7 +14,7 @@ Import         : 'import', Identifier, ('::', Identifier) ?, '\n'
 
 ImplicitMain   : ((Statement | '|'), ('\n' | ';'))*
 
-ExplicitMain   : 'fun', 'main', 'i32', '(', Identifier?, ')', ':', '\n',
+ExplicitMain   : 'fun', 'main', 'i32', '(', (Identifier, 'List')?, ')', ':', '\n',
                   StmtBlock
 
 ConstDeclaration : 'const', Initialization
