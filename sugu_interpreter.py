@@ -20,6 +20,14 @@ TT_CHAR                      = mkConst()
 TT_KWD                       = mkConst()
 TT_LCURLY                    = mkConst()
 TT_RCURLY                    = mkConst()
+TT_PLUS_EQU                  = mkConst()
+TT_MINUS_EQU                 = mkConst()
+TT_POW_EQU                   = mkConst()
+TT_TIMES_EQU                 = mkConst()
+TT_DIV_EQU                   = mkConst()
+TT_MOD_EQU                   = mkConst()
+TT_XOR_EQU                   = mkConst()
+TT_FLOOR_DIV_EQU             = mkConst()
 
 # A range of expression related tokens marked by the start and end constants EXPR_TKN_RANGE_START and END.
 EXPR_TKN_RANGE_START         = mkConst()
@@ -114,6 +122,14 @@ TOKEN_TYPE_MAP = {
     TT_RCURLY                    : "RCURLY",
     TT_IN_PLACE_INCR             : "IN_PLACE_INCREMENT",
     TT_IN_PLACE_DECR             : "IN_PLACE_DECREMENT",
+    TT_PLUS_EQU                  : "PLUS_EQU",
+    TT_MINUS_EQU                 : "MINUS_EQU",
+    TT_POW_EQU                   : "POW_EQU",
+    TT_TIMES_EQU                 : "TIMES_EQU",
+    TT_DIV_EQU                   : "DIV_EQU",
+    TT_MOD_EQU                   : "MOD_EQU",
+    TT_XOR_EQU                   : "XOR_EQU",
+    TT_FLOOR_DIV_EQU             : "FLOOR_DIVIDE_EQU"
 }
 
 # Character set constants:
@@ -420,7 +436,7 @@ class Lexer:
                       self.fileName,
                       "Found an end multiline comment tag '*}' but no accompanying '{*'."
                     ),
-                tokens.append(Token(TT_LCURLY, self.char, self.idx, self.idx +1, self.fileName))
+                tokens.append(Token(TT_RCURLY, self.char, self.idx, self.idx +1, self.fileName))
 
             elif self.char == '\\':
                 tokens.append(Token(TT_BACKSLASH, self.char, self.idx, self.idx + 1, self.fileName))
@@ -442,15 +458,41 @@ class Lexer:
 
             elif self.char == '=':
                 aToken = None
-                if len(self.srcCode) > self.idx + 1:
-                    if self.srcCode[self.idx + 1] == '=':
-                        aToken = Token(TT_DOUBLE_EQUAL, '==', self.idx, self.idx + 2, self.fileName)
-                        self.toNext() # Skip over the second equal sign. It's already been processed.
-                    else:
-                        aToken = Token(TT_EQUAL, self.char, self.idx, self.idx + 1, self.fileName)
+            
+                # If there is an operator in the previous index, we want to reassign the last token
+                # to be an in place assignment operator.
+                if self.idx > 0 and self.srcCode[self.idx - 1] == '+':
+                    tokens[-1] = Token(TT_PLUS_EQU, '+=', self.idx -2, self.idx + 1, self.fileName)
+                
+                elif self.idx > 0 and self.srcCode[self.idx - 1] == '-':
+                    tokens[-1] = Token(TT_MINUS_EQU, '-=', self.idx -2, self.idx + 1, self.fileName)
+                
+                elif self.idx > 0 and self.srcCode[self.idx - 2: self.idx + 1] == '**=':
+                    tokens[-1] = Token(TT_POW_EQU, '**=', self.idx -3, self.idx + 1, self.fileName)
+                
+                elif self.idx > 0 and self.srcCode[self.idx - 1] == '*':
+                    tokens[-1] = Token(TT_TIMES_EQU, '*=', self.idx -2, self.idx + 1, self.fileName)
+                
+                elif self.idx > 0 and self.srcCode[self.idx - 2: self.idx + 1] == '//=':
+                    tokens[-1] = Token(TT_FLOOR_DIV_EQU, '//=', self.idx -3, self.idx + 1, self.fileName)
+                    del tokens[-2]
+                
+                elif self.idx > 0 and self.srcCode[self.idx - 1] == '/':
+                    tokens[-1] = Token(TT_DIV_EQU, '/=', self.idx -2, self.idx + 1, self.fileName)
+                
+                elif self.idx > 0 and self.srcCode[self.idx - 1] == '%':
+                    tokens[-1] = Token(TT_MOD_EQU, '%=', self.idx -2, self.idx + 1, self.fileName)
+                
+                elif self.idx > 0 and self.srcCode[self.idx - 1] == '^':
+                    tokens[-1] = Token(TT_XOR_EQU, '^=', self.idx -2, self.idx + 1, self.fileName)
+                
+                elif self.idx > 0 and self.srcCode[self.idx - 1] == '=':
+                    tokens[-1] = Token(TT_DOUBLE_EQUAL, '==', self.idx -2, self.idx + 1, self.fileName)
+                
                 else:
                     aToken = Token(TT_EQUAL, self.char, self.idx, self.idx + 1, self.fileName)
-                tokens.append(aToken)
+                
+                if aToken: tokens.append(aToken)
 
             elif self.char == '!':
                 if len(self.srcCode) > self.idx + 1:
