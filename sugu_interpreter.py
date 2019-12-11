@@ -18,6 +18,8 @@ TT_FLOAT                     = mkConst()
 TT_STRING                    = mkConst()
 TT_CHAR                      = mkConst()
 TT_KWD                       = mkConst()
+TT_LCURLY                    = mkConst()
+TT_RCURLY                    = mkConst()
 
 # A range of expression related tokens marked by the start and end constants EXPR_TKN_RANGE_START and END.
 EXPR_TKN_RANGE_START         = mkConst()
@@ -43,6 +45,8 @@ TT_LESS_THAN_EQUAL           = mkConst()
 TT_GREATER_THAN_EQUAL        = mkConst()
 TT_LEFT_SHIFT                = mkConst()
 TT_RIGHT_SHIFT               = mkConst()
+TT_IN_PLACE_INCR             = mkConst()
+TT_IN_PLACE_DECR             = mkConst()
 
 EXPR_TKN_RANGE_END           = mkConst()
 
@@ -106,6 +110,10 @@ TOKEN_TYPE_MAP = {
     TT_DOLLAR_SIGN               : "DOLLAR_SIGN",
     TT_COMMA                     : "COMMA",
     TT_NONE                      : "NONE",
+    TT_LCURLY                    : "LCURLY",
+    TT_RCURLY                    : "RCURLY",
+    TT_IN_PLACE_INCR             : "IN_PLACE_INCREMENT",
+    TT_IN_PLACE_DECR             : "IN_PLACE_DECREMENT",
 }
 
 # Character set constants:
@@ -362,18 +370,13 @@ class Lexer:
                 tokens.append(aToken)
 
             elif self.char == '/':
-                aToken = None
                 if len(self.srcCode) > self.idx + 1:
                     if self.srcCode[self.idx + 1] == '/':
-                        self.ignoreComment(multiline = False)
-                    elif self.srcCode[self.idx + 1] == '*':
-                        self.ignoreComment(multiline = True)
+                        tokens.append(Token(TT_DBL_FWD_SLASH, '//', self.idx, self.idx + 1, self.fileName))
                     else:
-                        aToken = Token(TT_FWD_SLASH, self.char, self.idx, self.idx + 1, self.fileName)
+                        tokens.append(Token(TT_FWD_SLASH, self.char, self.idx, self.idx + 1, self.fileName))
                 else:
-                    aToken = Token(TT_FWD_SLASH, self.char, self.idx, self.idx + 1, self.fileName)
-
-                if aToken is not None: tokens.append(aToken)
+                    tokens.append(Token(TT_FWD_SLASH, self.char, self.idx, self.idx + 1, self.fileName))
 
             elif self.char == '~':
                 tokens.append(Token(TT_TILDE, self.char, self.idx, self.idx + 1, self.fileName))
@@ -395,6 +398,29 @@ class Lexer:
 
             elif self.char == '|':
                 tokens.append(Token(TT_PIPE_SYM, self.char, self.idx, self.idx + 1, self.fileName))
+            
+            elif self.char == '#':
+                self.ignoreComment(multiline = False)
+            
+            elif self.char == '{':
+                if len(self.srcCode) > self.idx + 1:
+                    if self.srcCode[self.idx + 1] == '*':
+                        self.ignoreComment(multiline = True)
+                    else:
+                        tokens.append(Token(TT_LCURLY, self.char, self.idx, self.idx +1, self.fileName))
+                else:
+                    tokens.append(Token(TT_LCURLY, self.char, self.idx, self.idx +1, self.fileName))
+            
+            elif self.char == '}':
+                if self.srcCode[self.idx - 1] == '*':
+                    return None, LexError(
+                      self.idx - 1,
+                      self.idx + 1,
+                      self.srcCode,
+                      self.fileName,
+                      "Found an end multiline comment tag '*}' but no accompanying '{*'."
+                    ),
+                tokens.append(Token(TT_LCURLY, self.char, self.idx, self.idx +1, self.fileName))
 
             elif self.char == '\\':
                 tokens.append(Token(TT_BACKSLASH, self.char, self.idx, self.idx + 1, self.fileName))
@@ -456,7 +482,13 @@ class Lexer:
                         self.toNext() # Skip over the equals sign. It's already been processed.
                     elif self.srcCode[self.idx + 1] == '<':
                         aToken = Token(TT_LEFT_SHIFT, '<<', self.idx, self.idx + 2, self.fileName)
-                        self.toNext() # Skip over the equals sign. It's already been processed.
+                        self.toNext() # Skip over the other <. It's already been processed.
+                    elif self.srcCode[self.idx + 1] == '+':
+                        aToken = Token(TT_IN_PLACE_INCR, '<+', self.idx, self.idx + 2, self.fileName)
+                        self.toNext()
+                    elif self.srcCode[self.idx + 1] == '-':
+                        aToken = Token(TT_IN_PLACE_DECR, '<-', self.idx, self.idx + 2, self.fileName)
+                        self.toNext()
                     else:
                         aToken = Token(TT_LESS_THAN, self.char, self.idx, self.idx + 1, self.fileName)
                 else:
@@ -536,22 +568,22 @@ class Lexer:
         # Advance past the comment tag to avoid registering it again. At the initial call,
         # self.idx is pointing to the backslash but the slicing logic inside the ignore loop
         # recognizes end comment tags when self.idx points to the asterisk.
-        # /*...
+        # {*...
         # ^ We are here.
         self.toNext(); self.toNext(); self.toNext()
-        # /*...
+        # {*...
         #    ^ Now we are here.
         nestingDepth = 0
         while self.idx >= 0:
 
             if multiline:
-                if self.srcCode[self.idx - 1: self.idx + 1] == '/*':
+                if self.srcCode[self.idx - 1: self.idx + 1] == '{*':
                     nestingDepth += 1
                     self.toNext()
-                elif self.srcCode[self.idx - 1: self.idx + 1] == '*/' and nestingDepth > 0:
+                elif self.srcCode[self.idx - 1: self.idx + 1] == '*}' and nestingDepth > 0:
                     nestingDepth -= 1
                     self.toNext()
-                elif self.srcCode[self.idx - 1: self.idx + 1] == '*/' and nestingDepth <= 0:
+                elif self.srcCode[self.idx - 1: self.idx + 1] == '*}' and nestingDepth <= 0:
                     return
 
             else:
