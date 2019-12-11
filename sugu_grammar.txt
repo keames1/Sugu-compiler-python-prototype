@@ -1,4 +1,9 @@
-Initialization : Identifier, TypeKeyword, '=', expr
+# There is no variable declaration because all variables in sugu must be initialized to prevent garbage
+# from getting into the program.
+
+Initialization : Identifier, ( TypeKeyword | DeclaredType ), '=', expr
+
+DeclaredType   : '$', Identifier
 
 Assign         : (Identifier | MemFieldRef), ('=' | InPlaceAssignOperator), expr
 
@@ -20,6 +25,7 @@ ParenExpr      : '(', expr, ')'
 MainOperator   : 'not'| '~' | '$' | '+' | '-' | '&' | '*'
                : 'and' | 'or' | '==' | '!=' | '>=' | '<=' | '<' | '>'
                : '**' | '*' | '/' | '//' | '%' | '+' | '-'
+               : '(', TypeKeyword, ')'
 
 FunCall        : Identifier, '(', ParamList? ')'
 
@@ -56,7 +62,7 @@ StringLiteral  : '"', StringBody, '"'
 ArrayLiteral   : '[', (Expr, ',') *, Expr, ','?, ']', TypeKeyword?
 
 TypeKeyword    : 'i8' | 'i16' | 'i32' | 'i64' | 'iexp' | 'u8' | 'u16' | 'u32' | 'u64' | 'f32' | 'f64'
-               : 'fexp' | 'char' | 'bool' | 'ref' | 'String' | 'str'
+               : 'fexp' | 'char' | 'bool' | ('ref', TypeKeyword) | ('ref', '$', Identifier) | 'String' | 'str'
 
 # ! means anything other than the characters in its operand. {An exact number}
 
