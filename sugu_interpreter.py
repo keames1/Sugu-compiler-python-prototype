@@ -1,7 +1,29 @@
-import re
-# Regular expression constants used to recognize certain tokens.
-RE_C_VALID_IDENTIFIER_PTRN = re.compile(r"^[a-zA-Z_]+[a-zA-Z_0-9]*$")
-#RE_C_VALID_STRUCT_ENUM_REF_PATTERN = re.compile(r"^([a-zA-Z_]+[a-zA-Z_0-9]*+\.)+[a-zA-Z_]+[a-zA-Z_0-9]*$")
+
+# This main function will eventually perform all the operations necessary to executing to code.
+# For now, it just prints the token stream for testing purposes.
+def main (argv):
+
+    # Open the file to be executed.
+    if len(argv) < 2:
+        print("No input file. Compilation/interpretation terminated.")
+        exit()
+
+    fileName = argv[1]; srcCode = ""
+    try:
+        with open(fileName, 'r') as f:
+            srcCode = f.read()
+    except FileNotFoundError:
+        print(f"No such file or directory '{fileName}'.")
+
+    lex = Lexer(srcCode, fileName)
+
+    tokens, err = lex.genTokens()
+
+    if err:
+        print(err)
+        exit()
+
+    print(tokens)
 
 # A function for generating unique constants with values that will be consistent throughout execution
 # in cases where the specific values are irrelevant.
@@ -20,6 +42,8 @@ TT_CHAR                      = mkConst()
 TT_KWD                       = mkConst()
 TT_LCURLY                    = mkConst()
 TT_RCURLY                    = mkConst()
+TT_LSQUARE                   = mkConst()
+TT_RSQUARE                   = mkConst()
 TT_PLUS_EQU                  = mkConst()
 TT_MINUS_EQU                 = mkConst()
 TT_POW_EQU                   = mkConst()
@@ -28,6 +52,10 @@ TT_DIV_EQU                   = mkConst()
 TT_MOD_EQU                   = mkConst()
 TT_XOR_EQU                   = mkConst()
 TT_FLOOR_DIV_EQU             = mkConst()
+TT_LEFT_SHIFT_EQU            = mkConst()
+TT_RIGHT_SHIFT_EQU           = mkConst()
+TT_OR_EQU                    = mkConst()
+TT_AND_EQU                   = mkConst()
 
 # A range of expression related tokens marked by the start and end constants EXPR_TKN_RANGE_START and END.
 EXPR_TKN_RANGE_START         = mkConst()
@@ -66,6 +94,7 @@ TT_IDENTIFIER                = mkConst()
 TT_MEMBER_FIELD_REF          = mkConst()
 TT_SEMICOLON                 = mkConst()
 TT_COLON                     = mkConst()
+TT_DBL_COLON                 = mkConst()
 TT_OCTOTHORPE                = mkConst()
 TT_NEWLINE                   = mkConst()
 TT_DOLLAR_SIGN               = mkConst()
@@ -129,7 +158,14 @@ TOKEN_TYPE_MAP = {
     TT_DIV_EQU                   : "DIV_EQU",
     TT_MOD_EQU                   : "MOD_EQU",
     TT_XOR_EQU                   : "XOR_EQU",
-    TT_FLOOR_DIV_EQU             : "FLOOR_DIVIDE_EQU"
+    TT_FLOOR_DIV_EQU             : "FLOOR_DIVIDE_EQU",
+    TT_LEFT_SHIFT_EQU            : "LEFT_SHIFT_EQU",
+    TT_RIGHT_SHIFT_EQU           : "RIGHT_SHIFT_EQU",
+    TT_OR_EQU                    : "OR_EQU",
+    TT_AND_EQU                   : "AND_EQU",
+    TT_LSQUARE                   : "LSQUARE",
+    TT_RSQUARE                   : "RSQUARE",
+    TT_DBL_COLON                 : "DBL_COLON"
 }
 
 # Character set constants:
@@ -162,25 +198,105 @@ KWD_F64         = "f64"
 KWD_FEXP        = "Fexp"
 KWD_STR         = "str"
 KWD_STRING      = "String"
+KWD_LIST        = "List"
+KWD_SIG         = "sig"
+KWD_SIGNATURE   = "signature"
 
 KWD_CHAR        = "char"
 KWD_BOOL        = "bool"
 KWD_REF         = "ref"
 
+KWD_NAMESPACE   = "namespace"    # Import related keywords
+KWD_IMPORT      = "import"
+
+KWD_FUN         = "fun"          # Function related keywords
+KWD_D_ERROR     = ".error"       # A decorator used to mark a function as an error handler.
+KWD_D_OVERRIDE  = ".override"
+KWD_RETURN      = "return"
+KWD_IMPL        = "impl"
+KWD_NORETURN    = "noreturn"     # equivalent to void in c-based languages.
+KWD_MAIN        = "main"         # Used to identify explicit main functions.
+KWD_ARGV        = "argv"         # Implicit main doesn't have a function header. The argv keyword is
+                                 # how command line args are referenced when a program has an implicit main.
+
+KWD_ENUM        = "enum"
+KWD_D_BITFIELD  = ".bitfield"
+
+KWD_STRUCT      = "struct"
+KWD_FIELD       = "field"
+
+KWD_CONST       = "const"
+KWD_GLOBAL      = "global"
+
+KWD_SWITCH      = "switch"
+KWD_CASE        = "case"
+KWD_DEFAULT     = "default"
+
+KWD_WHILE       = "while"        # All flow control keywords.
+KWD_POST        = "post"
+KWD_FOR         = "for"
+KWD_IN          = "in"
+KWD_TO          = "to"
+
+KWD_ISOLATE     = "isolate"
+KWD_USING       = "using"
+KWD_ISOLATE     = "isolate"
+KWD_USING       = "using"
+KWD_WITH        = "with"
+KWD_AS          = "as"
+
+KWD_BREAK       = "break"
+KWD_CONTINUE    = "continue"
+KWD_RETURN      = "return"
+KWD_RAISE       = "raise"
+KWD_LEAVE       = "leave"
+
+KWD_S_TRUE      = "True"         # Singleton value keywords.
+KWD_S_FALSE     = "False"
+KWD_S_NONE      = "None"
+
 KWD_NONRUNTIME  = ".nonruntime"  # Directive keywords signifying code to be interpreted during compile time.
 KWD_END         = ".end"
 KWD_AVAILABLE   = ".available"   # Declares constants to be allowed for manipulation by nonruntime code.
 KWD_UNAVAILABLE = ".unavailable" # Declares constants to be unavailable for manipulation by nonruntime code.
+KWD_ANY         = "any"          # Keyword used to declare all constants available to a nonruntime
+KWD_ALL         = "all"
 
 # A keyword tuple used for determining wheather a certain sequence is a keyword.
 KS_ALL_KWDS   = (
-  KWD_AND, KWD_OR,   KWD_NOT,  KWD_IF,   KWD_ELIF, KWD_ELSE,
-  
-  KWD_I8,  KWD_I16,  KWD_I32,  KWD_I64,  KWD_IEXP, KWD_F32,
+  # The keyword operators. These include the if, elif, and else also used in if statements.
+  KWD_AND, KWD_OR, KWD_NOT, KWD_IF, KWD_ELIF, KWD_ELSE,
+
+  KWD_FUN, KWD_D_ERROR, KWD_D_OVERRIDE, KWD_RETURN,
+  KWD_NORETURN, KWD_MAIN, KWD_ARGV, KWD_IMPL,
+
+  KWD_ENUM, KWD_D_BITFIELD,
+
+  KWD_STRUCT, KWD_FIELD,
+
+  KWD_CONST, KWD_GLOBAL,
+
+  # All flow control statement keywords.
+  KWD_SWITCH, KWD_CASE, KWD_DEFAULT, KWD_WHILE,
+  KWD_POST, KWD_FOR, KWD_IN, KWD_TO,
+
+  KWD_ISOLATE, KWD_USING, KWD_WITH, KWD_AS,
+
+  KWD_BREAK, KWD_CONTINUE, KWD_RETURN, KWD_RAISE, KWD_LEAVE,
+
+  KWD_I8,  KWD_I16,  KWD_I32,  KWD_I64, KWD_IEXP, KWD_F32,
   KWD_F64, KWD_FEXP, KWD_CHAR, KWD_BOOL, KWD_REF, KWD_STR,
-  KWD_STRING, KWD_U8, KWD_U16, KWD_U32, KWD_U64, 
+  KWD_STRING, KWD_LIST, KWD_U8, KWD_U16, KWD_U32, KWD_U64,
+  KWD_SIGNATURE, KWD_SIG,
   
+  KWD_S_TRUE, KWD_S_FALSE, KWD_S_NONE,
+
+  KWD_IMPORT, KWD_NAMESPACE,
+
   KWD_NONRUNTIME, KWD_END, KWD_AVAILABLE, KWD_UNAVAILABLE,
+  KWD_ANY, KWD_ALL,
+
+  KWD_D_ERROR,
 )
 # Tuples of keywords used for identifying specific types of keywords, such as keyword operators.
 KS_LOGICAL_OPERATORS = (KWD_AND, KWD_OR, KWD_NOT, )
@@ -190,15 +306,10 @@ KS_KWD_OPERATORS = (KWD_AND, KWD_OR, KWD_NOT, KWD_IF, KWD_ELIF, KWD_ELSE, )
 KS_TYPE_KWDS = (
   KWD_I8,  KWD_I16,  KWD_I32,  KWD_I64,  KWD_IEXP, KWD_F32,
   KWD_F64, KWD_FEXP, KWD_CHAR, KWD_BOOL, KWD_REF,
-  KWD_STR, KWD_STRING, KWD_U8, KWD_U16, KWD_U32, KWD_U64, 
+  KWD_STR, KWD_STRING, KWD_U8, KWD_U16, KWD_U32, KWD_U64,
 )
 KS_NONRUNTIME_RELATED = (KWD_NONRUNTIME, KWD_END, KWD_AVAILABLE, KWD_UNAVAILABLE, )
 
-def isIdentifier (aStr):
-    return RE_C_VALID_IDENTIFIER_PTRN.search(aStr) and aStr not in KS_ALL_KWDS
-
-# def isStructEnumRef (aStr):
-    # return RE_C_VALID_STRUCT_ENUM_REF_PATTERN.search(aStr) and aStr not in KS_ALL_KWDS
 
 class TV_ANY:  # An instance of TV_ANY in the value field of a Token instance makes the compare method
                # ignore the value field in the comparison.
@@ -414,19 +525,26 @@ class Lexer:
 
             elif self.char == '|':
                 tokens.append(Token(TT_PIPE_SYM, self.char, self.idx, self.idx + 1, self.fileName))
-            
+
             elif self.char == '#':
                 self.ignoreComment(multiline = False)
-            
+                # There needs to be a newline inserted into the token stream because ignoreComment
+                # will ignore the newline at the end as well.
+                tokens.append(Token(TT_NEWLINE, '\n', self.idx, self.idx + 1, self.fileName))
+
             elif self.char == '{':
                 if len(self.srcCode) > self.idx + 1:
                     if self.srcCode[self.idx + 1] == '*':
                         self.ignoreComment(multiline = True)
+                        # Adding in a newline in keeping with the convention that
+                        # comments are treated the same as newlines.
+                        tokens.append(Token(TT_NEWLINE, '\n', self.idx, self.idx + 1, self.fileName))
+
                     else:
                         tokens.append(Token(TT_LCURLY, self.char, self.idx, self.idx +1, self.fileName))
                 else:
                     tokens.append(Token(TT_LCURLY, self.char, self.idx, self.idx +1, self.fileName))
-            
+
             elif self.char == '}':
                 if self.srcCode[self.idx - 1] == '*':
                     return None, LexError(
@@ -436,7 +554,13 @@ class Lexer:
                       self.fileName,
                       "Found an end multiline comment tag '*}' but no accompanying '{*'."
                     ),
-                tokens.append(Token(TT_RCURLY, self.char, self.idx, self.idx +1, self.fileName))
+                tokens.append(Token(TT_RCURLY, self.char, self.idx, self.idx + 1, self.fileName))
+            
+            elif self.char == '[':
+                tokens.append(Token(TT_LSQUARE, self.char, self.idx, self.idx + 1, self.fileName))
+            
+            elif self.char == ']':
+                tokens.append(Token(TT_RSQUARE, self.char, self.idx, self.idx + 1, self.fileName))
 
             elif self.char == '\\':
                 tokens.append(Token(TT_BACKSLASH, self.char, self.idx, self.idx + 1, self.fileName))
@@ -445,7 +569,11 @@ class Lexer:
                 tokens.append(Token(TT_COMMA, self.char, self.idx, self.idx + 1, self.fileName))
 
             elif self.char == ':':
-                tokens.append(Token(TT_COLON, self.char, self.idx, self.idx + 1, self.fileName))
+                if self.idx > 0 and self.srcCode[self.idx - 1] == ':' and tokens[-1].tokType != TT_DBL_COLON:
+                    tokens[-1] = Token(TT_DBL_COLON, '::', self.idx, self.idx + 1, self.fileName)
+                
+                else:
+                    tokens.append(Token(TT_COLON, self.char, self.idx, self.idx + 1, self.fileName))
 
             elif self.char == '#':
                 tokens.append(Token(TT_OCTOTHORPE, self.char, self.idx, self.idx + 1, self.fileName))
@@ -458,40 +586,52 @@ class Lexer:
 
             elif self.char == '=':
                 aToken = None
-            
+
                 # If there is an operator in the previous index, we want to reassign the last token
                 # to be an in place assignment operator.
                 if self.idx > 0 and self.srcCode[self.idx - 1] == '+':
                     tokens[-1] = Token(TT_PLUS_EQU, '+=', self.idx -2, self.idx + 1, self.fileName)
-                
+
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '-':
                     tokens[-1] = Token(TT_MINUS_EQU, '-=', self.idx -2, self.idx + 1, self.fileName)
-                
+
                 elif self.idx > 0 and self.srcCode[self.idx - 2: self.idx + 1] == '**=':
                     tokens[-1] = Token(TT_POW_EQU, '**=', self.idx -3, self.idx + 1, self.fileName)
-                
+
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '*':
                     tokens[-1] = Token(TT_TIMES_EQU, '*=', self.idx -2, self.idx + 1, self.fileName)
-                
+
                 elif self.idx > 0 and self.srcCode[self.idx - 2: self.idx + 1] == '//=':
                     tokens[-1] = Token(TT_FLOOR_DIV_EQU, '//=', self.idx -3, self.idx + 1, self.fileName)
                     del tokens[-2]
-                
+
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '/':
                     tokens[-1] = Token(TT_DIV_EQU, '/=', self.idx -2, self.idx + 1, self.fileName)
-                
+
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '%':
                     tokens[-1] = Token(TT_MOD_EQU, '%=', self.idx -2, self.idx + 1, self.fileName)
-                
+
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '^':
                     tokens[-1] = Token(TT_XOR_EQU, '^=', self.idx -2, self.idx + 1, self.fileName)
-                
+
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '=':
                     tokens[-1] = Token(TT_DOUBLE_EQUAL, '==', self.idx -2, self.idx + 1, self.fileName)
-                
+
+                elif self.idx > 0 and self.srcCode[self.idx - 2: self.idx + 1] == '<<=':
+                    tokens[-1] = Token(TT_LEFT_SHIFT_EQU, '<<=', self.idx - 3, self.idx + 1)
+
+                elif self.idx > 0 and self.srcCode[self.idx - 2: self.idx + 1] == '>>=':
+                    tokens[-1] = Token(TT_RIGHT_SHIFT_EQU, '>>=', self.idx - 3, self.idx + 1)
+
+                elif self.idx > 0 and self.srcCode[self.idx - 1] == '|':
+                    tokens[-1] = Token(TT_OR_EQU, '|=', self.idx - 2, self.idx + 1, self.fileName)
+
+                elif self.idx > 0 and self.srcCode[self.idx - 1] == '&':
+                    tokens[-1] = Token(TT_AND_EQU, '&=', self.idx - 2, self.idx + 1, self.fileName)
+
                 else:
                     aToken = Token(TT_EQUAL, self.char, self.idx, self.idx + 1, self.fileName)
-                
+
                 if aToken: tokens.append(aToken)
 
             elif self.char == '!':
@@ -757,7 +897,7 @@ class Lexer:
 
         # It's unknown whether it's a keyword or identifier at this time, so wordStr it is.
         wordStr = self.char
-        dotCount = 0
+        dotCount = 0 if wordStr != '.' else 1
         previousCharWasDot = False
         startPos = self.idx
 
@@ -791,17 +931,6 @@ class Lexer:
             else:
                 previousCharWasDot = False
 
-        # Yell and scream if the user typed a dot at the beginning of the string. Some compiler directive keywords
-        # in the future like '.nonruntime' may be written like this so I want to leave those alone.
-        if wordStr[0] == '.' and wordStr not in KS_ALL_KWDS:
-            return None, LexError(
-              startPos,
-              self.idx + 1,
-              self.srcCode,
-              self.fileName,
-              f"A dot in a member/field reference must be preceeded by a valid identifier and '{wordStr}' is not a keyword."
-            ),
-
         # Yell and scream at the programmer if they typed a dot at the end. For example, 'invalid.'.
         if wordStr[-1] == '.':
             return None, LexError(
@@ -827,7 +956,15 @@ class Lexer:
         elif wordStr in KS_ALL_KWDS:
             return Token(TT_KWD, wordStr, startPos, self.idx + 1, self.fileName), None,
         elif dotCount != 0 and wordStr not in KS_ALL_KWDS:
-            return Token(TT_MEMBER_FIELD_REF, wordStr, startPos, self.idx + 1, self.fileName), None,
+            
+            wordList = wordStr.split('.')
+            wordListSansEmptyStrings = []
+            for i in wordList:
+                if i != "":
+                    wordListSansEmptyStrings.append(i)
+            
+            wordTuple = tuple(wordListSansEmptyStrings)
+            return Token(TT_MEMBER_FIELD_REF, wordTuple, startPos, self.idx + 1, self.fileName), None,
 
     def intConvert (self):
 
@@ -955,471 +1092,7 @@ class SyntxError (GeneralError):
         super().__init__ (startPos, endPos, srcCode, fileName, message)
         self.template = SYNTAX_ERR_TEMPLATE
 
-START_OF_LINE = 0
 
-# A parse tree base class. Instances of this class represent the program parse tree and subtree classes
-# inherit from this class to satisfy the DRY gods.
-class ParseTree:
-
-    IDX_SENTINAL_VALUE = -2048
-
-    def __init__ (self, tokens, startIdx, srcCode = None, fileName = None, treeType = TR_ROOT):
-
-        self.tokens = tokens
-        self.idx = startIdx
-        self.currTok = self.tokens[self.idx]
-        self.treeType = treeType
-        self.children = []
-
-        # Yell and scream if srcCode and fileName weren't passed and aren't currently assigned.
-        if not hasattr(self, "srcCode") and srcCode is None:
-            raise TypeError("As the srcCode attribute is not yet assigned, expected srcCode to be passed to \
-this constructor.")
-
-        if not hasattr(self, "fileName") and fileName is None:
-            raise TypeError("As the fileName attribute is not yet assigned, expected fileName to be passed \
-to this constructor.")
-
-        if not hasattr(self, "srcCode") or srcCode is not None:
-            self.srcCode = srcCode
-
-        if not hasattr(self, "fileName") or fileName is not None:
-            self.fileName = fileName
-
-    def toNext():
-        self.idx += 1
-        if self.idx < len(self.tokens) and self.idx >= 0:
-            self.currTok = self.tokens[self.idx]
-        else:
-            self.idx = ParseTree.IDX_SENTINAL_VALUE
-            self.currTok = TC_NONE_TOKEN
-
-    def compareTknSequence (self, aSeq, bSeq):
-
-        if len(aSeq) != len(bSeq): return False
-
-        for idx, tok in enumerate(aSeq):
-
-            if not tok.compare(bSeq[idx]): return False
-
-        return True
-
-    def integrate (self, aSubtree):
-        self.idx = aSubTree.idx
-        self.currTok = self.tokens[self.idx]
-        self.children.append(aSubtree)
-
-    def parse (self):
-
-        # Call the appropriate parse method based on the tree type:
-        appropriateMethod = {
-
-          TR_ROOT              : self.parse_root,
-
-          TR_VAR_DECLARATION   : self.parse_var_declaration,
-          TR_ASSIGN_EXPR       : self.parse_assign_expr,
-          TR_EXPR              : self.parse_expr,
-
-        }[self.treeType]
-
-        parseResult = appropriateMethod()
-        # Return the tuple (ParseTree instance or None, error object or None).
-        return parseResult
-
-##########################################################################################
-#                                      PARSE_ROOT
-
-    def parse_root (self):
-
-        # The sequence of tokens currently being analyzed.
-        currentSequence = []
-        # The start index of the sequence of tokens being analyzed.
-        startIdx = self.idx
-        # While there are tokens to be parsed, parse on! The sentinal
-        # value is always positive.
-        while self.idx <= 0:
-
-            if not self.currTok.compare(TC_NEWLINE):
-                currentSequence.append(self.currTok)
-            else:
-                currentSequence = []
-                startIdx = self.idx + 1
-                # Yell and scream if there are multiple consecutive semicolons.
-                if self.currTok.compare(TC_SEMICOLON
-                  ) and self.tokens[self.idx - 1
-                  ].compare(TC_SEMICOLON):
-
-                    return None, SyntxError(
-                      self.tokens[startIdx].startIdx,
-                      self.currTok.endIdx,
-                      self.srcCode,
-                      self.fileName,
-                      "Multiple consecutive semicolons on a single line."
-                    ),
-
-            if self.currTok.compare(TC_END_OF_FILE):
-                # Yell and scream if the current sequence of tokens
-                # hasn't yet been recognized and discarded.
-                if len(currentSequence) != 0:
-                    return None, SyntxError(
-                      self.tokens[startIdx].startIdx,
-                      self.tokens[self.idx - 1].endIdx,
-                      self.srcCode,
-                      self.fileName,
-                      f"Unrecognizable statement '{self.srcCode[self.tokens[startIdx].startIdx:]}' Reached EOF before the sequence became recognizable."
-                    ),
-                else:
-                    return self, None,
-
-            # Different features will require different numbers of tokens to recognize. Each of
-            # these elif clauses will perform tests to identify those sequences. The else clause
-            # represents the case in which none of the tests passed meaning the token sequence is
-            # either unrecognizable and constitutes a syntax error or it's an expression.
-            elif len(currentSequence) == 0:
-
-                pass # Nothing recognizable with 0 information
-
-            elif len(currentSequence) == 1:
-
-                # Since this is the root, we don't want to allow backslashes. They are used to mark the end
-                # of a block without adding a newline. Linefills (pipe symbols) may be used for
-                # programming style reasons, but we don't want any other tokens on the same line as a
-                # linefill.
-                if self.currTok.compare(TC_LINEFILL):
-
-                    if len(self.tokens) > self.idx + 1:
-                        if not (self.tokens[self.idx + 1].compare(TC_NEWLINE) or
-                          self.tokens[self.idx + 1].compare(TC_END_OF_FILE)):
-
-                            return None, SyntxError(
-                              self.tokens[startIdx].startIdx,
-                              self.tokens[self.idx + 1].endIdx,
-                              self.srcCode,
-                              self.fileName,
-                              "Only newlines, whitespace and comments are allowed after a newline.\n    Moreover, if there is a multiline comment after the linefill, please be\n    sure to add a newline after the comment.\n\n    (Newlines inside the comment are ignored as the comment is not subject to lexical analysis.)"
-                            ),
-
-                # Currently the only subtree that could have a lenght of 1 are expressions. We don't
-                # want to jump the gun since there could be more tokens before the next statement so
-                # we check whether the next token marks the end of the statement.
-                elif len(self.tokens) > self.idx + 1:
-                    if self.tokens[self.idx + 1].compare(TC_NEWLINE
-                      ) or self.tokens[self.idx + 1].compare(TC_END_OF_FILE):
-
-                        aSubTree, err = ParseTree(
-                          self.tokens,
-                          startIdx,
-                          self.srcCode,
-                          self.fileName,
-                          treeType = TR_EXPR
-                        ).parse()
-
-                        if err:
-                            return None, err,
-
-                        self.integrate(aSubtree)
-                        currentSequence = []
-                        startIdx = self.idx
-                        continue
-
-            elif len(currentSequence) == 2:
-
-                # Yell and scream if the programmer types a | (linefill) at the end of a line.
-                if currentSequence[1].compare(TC_LINEFILL):
-                    if self.tokens[self.idx + 1].compare(TC_END_OF_FILE
-                      ) or self.tokens[self.idx + 1].compare(TC_NEWLINE):
-                        return None, SyntxError(
-                          self.tokens[startIdx].startIdx,
-                          self.currTok.endIdx,
-                          self.srcCode,
-                          self.fileName,
-                          "Linefills (|) can only appear on blank lines."
-                        ),
-
-                if self.compareTknSequence(currentSequence, [
-                  TC_IDENTIFIER,
-                  TC_EQUAL
-                  ]) or self.compareTknSequence(currentSequence, [
-                  TC_MEMBER_FIELD_REF,
-                  TC_EQUAL
-                  ]):
-
-                    aSubTree, err = ParseTree(
-                      self.tokens,
-                      startIdx,
-                      self.srcCode,
-                      self.fileName,
-                      treeType = TR_ASSIGN_EXPR
-                    ).parse()
-
-                    if err:
-                        return None, err,
-
-                    self.integrate(aSubtree)
-                    currentSequence = []
-                    startIdx = self.idx
-                    continue
-
-                elif self.compareTknSequence(currentSequence, [
-                  TC_IDENTIFIER,
-                  TC_DOLLAR_SIGN
-                  ]) or self.compareTknSequence(currentSequence, [
-                  TC_MEMBER_FIELD_REF,
-                  TC_DOLLAR_SIGN
-                  ]):
-
-                    aSubTree, err = ParseTree(
-                      self.tokens,
-                      startIdx,
-                      self.srcCode,
-                      self.fileName,
-                      treeType = TR_VAR_DECLARATION
-                    ).parse()
-
-                    if err:
-                        return None, err,
-
-                    self.integrate(aSubtree)
-                    currentSequence = []
-                    startIdx = self.idx
-                    continue
-
-                # Variable declarations can also begin with IDENTIFIER, KWD_DATA_TYPE. This check needs to
-                # be performed as well.
-                elif (
-                  currentSequence[0].compare(TC_IDENTIFIER
-                  ) and currentSequence[1].compare(TC_KWD
-                  ) and currentSequence[1].tokVal in KS_TYPE_KWDS
-                  ) or (
-                  currentSequence[0].compare(TC_IDENTIFIER
-                  ) and currentSequence[1].compare(TC_KWD
-                  ) and currentSequence[1].tokVal in KS_TYPE_KWDS
-                  ):
-
-                    aSubTree, err = ParseTree(
-                      self.tokens,
-                      startIdx,
-                      self.srcCode,
-                      self.fileName,
-                      treeType = TR_VAR_DECLARATION
-                    ).parse()
-
-                    if err:
-                        return None, err,
-
-                    self.integrate(aSubtree)
-                    currentSequence = []
-                    startIdx = self.idx
-                    continue
-
-                # If nothing else has been recognized and the end of the statement is on its way,
-                # try to parse the current sequence as an expression.
-                elif len(self.tokens) > self.idx + 1:
-                    if self.tokens[self.idx + 1].compare(TC_NEWLINE
-                      ) or self.tokens[self.idx + 1].compare(TC_END_OF_FILE):
-
-                        aSubTree, err = ParseTree(
-                          self.tokens,
-                          startIdx,
-                          self.srcCode,
-                          self.fileName,
-                          treeType = TR_EXPR
-                        ).parse()
-
-                        if err:
-                            return None, err,
-
-                        self.integrate(aSubtree)
-                        currentSequence = []
-                        startIdx = self.idx
-                        continue
-
-            else:
-                if len(self.tokens) > self.idx + 1:
-                    if self.tokens[self.idx + 1].compare(TC_NEWLINE
-                      ) or self.tokens[self.idx + 1].compare(TC_END_OF_FILE):
-
-                        aSubTree, err = ParseTree(
-                          self.tokens,
-                          startIdx,
-                          self.srcCode,
-                          self.fileName,
-                          treeType = TR_EXPR
-                        ).parse()
-
-                        if err:
-                            return None, err,
-
-                        self.integrate(aSubtree)
-                        currentSequence = []
-                        startIdx = self.idx
-                        continue
-
-            self.toNext()
-
-##########################################################################################
-
-##########################################################################################
-#                             ALL POSSIBLE CHILDREN OF ROOT
-
-    def parse_var_declaration (self):
-        pass
-
-    def parse_assign_expr (self):
-        pass
-
-    def parse_expr (self):
-
-        # The caller places us at the beginning of the tokens in a single line of code.
-        # The end of the line marks the end of the expression so all the tokens need to
-        # be collected before begining to parse the expression.
-        exprSequence = []
-        # We want to ignore newlines when inside pairs of parentheses so we need a nesting
-        # depth variable.
-        nestingDepth = 0
-        # A boolean flag used to handle case of '(' but no ')'.
-        sawFirstLParen = False
-        firstLParenIdx = 0
-        self.startIdx = self.idx
-
-        while self.idx >= 0:
-
-            if self.currTok.compare(TC_NEWLINE
-              ) or self.currTok.compare(TC_END_OF_FILE
-              ) and nestingDepth == 0:
-                break
-
-            elif self.currTok.compare(TC_NEWLINE
-              ) or self.currTok.compare(TC_END_OF_FILE
-              ) and nestingDepth != 0:
-                return None, SyntxError(
-                  self.tokens[startIdx].startIdx,
-                  self.tokens[firstParenIdx].endIdx,
-                  self.srcCode,
-                  self.fileName,
-                  "Found '(' but no ')'."
-                ),
-
-            elif nestingDepth < 0:
-
-                # We don't want to mark a span from the beginning of the expression to the end of the file.
-                endIdx = self.idx if not sawFirstLParen else firstLParenIdx
-
-                return None, SyntxError(
-                  self.tokens[startIdx].startIdx,
-                  self.tokens[endIdx].endIdx,
-                  self.srcCode,
-                  self.fileName,
-                  "Found ')' but no '(' before it."
-                ),
-
-            elif self.currTok.compare(TC_LPAREN):
-                nestingDepth += 1
-                # We copy the Token instance here rather than simply referencing it because the copy will
-                # be deleted when it's consumed.
-                exprSequence.append(self.currTok.copy())
-                if not sawFirstLParen:
-                    sawFirstLParen = True
-                    firstLParenIdx = self.idx
-
-            elif self.currTok.compare(TC_RPAREN):
-                nestingDepth -= 1
-                exprSequence.append(self.currTok)
-
-            else:
-
-                exprSequence.append(self.currTok.copy())
-
-            self.toNext()
-
-        # Recursively parse the expression.
-        prescidenceMap = {
-          0: (TT_DOUBLE_EQUAL, TT_LESS_THAN, TT_GREATER_THAN, TT_LESS_THAN_EQUAL, TT_GREATER_THAN_EQUAL, TT_NOT_EQU, ),
-          1: (TT_ANDPERSAND, TT_PIPE_SYM, TT_CARROT, ),
-          2: (TT_PLUS, TT_MINUS, ),
-          3: (TT_ASTERISK, TT_FWD_SLASH, TT_PERCENT, TT_LEFT_SHIFT, TT_RIGHT_SHIFT, ),
-          4: (TT_DBL_ASTERISK, ),
-          5: (TT_TILDE, TT_MINUS, TT_PLUS),
-          6: (TT_IDENTIFIER, TT_MEMBER_FIELD_REF, TT_INTEGER, TT_FLOAT, TT_CHAR, TT_STRING, ),
-        }
-        # Minus and plus are both unary operators and binary operators depending on the context in
-        # which they appear. A check for the prescidence level being evaluated and the presence of
-        # a token that can be a left hand operand on the left will need to be performed while
-        # parsing into RPN. This tuple contains all tokens which signify a valid left hand operand.
-        validLeftOperands = (TT_IDENTIFIER, TT_MEMBER_FIELD_REF, TT_INTEGER, TT_FLOAT, TT_CHAR, TT_STRING, )
-        # For syntax checking purposes, valid right hand operands must also be included, and must include
-        # the operators of unary expressions.
-        validRightOperands = (TT_IDENTIFIER, TT_MEMBER_FIELD_REF, TT_INTEGER, TT_FLOAT, TT_CHAR, TT_STRING, TT_TILDE, TT_PLUS, TT_MINUS, )
-        # The current token prescidence being searched for. Larger numbers indicate higher prescidence. 6
-        # is the prescidence level of the individual atoms (Numbers, variables, etc.)
-        prescidenceLvl = 6
-        while len(exprSequence != 0):
-            
-            nestingDepth = 0
-            sawSubExpr = False
-            collectedSubExpr = False
-            subExprStartEndIdcs = []
-            
-            numCurrPrescLvlTkns = 0
-            currPrescLvlTknIdces = []
-            subExpr = []
-
-            for idx, tok in enumerate(exprSequence):
-
-                if (tok.tokType == TT_LPAREN or sawSubExpr) and not collectedSubExpr:
-                    
-                    # Grab a sub expression and parse it by instantiating parseTree type TR_EXPR recursively
-                    # after the inner for loop.
-                    if tok.tokType == TT_LPAREN and not sawSubExpr:
-                        sawSubExpr = True
-                        nestingDepth += 1
-                        subExprStartEndIdcs.append(idx)
-                    
-                    
-                    
-                    elif tok.tokType == TT_LPAREN and sawSubExpr:
-                        subExpr.append(tok)
-                        nestingDepth += 1
-                    
-                    elif tok.tokType == TT_RPAREN and sawSubExpr:
-                        nestingDepth -= 1
-                        if nestingDepth != 0:
-                            subExpr.append(tok)
-                        else:
-                            collectedSubExpr = True
-                            subExprStartEndIdcs.append(idx + 1)
-                            break
-                    
-                    else:
-                        subExpr.append(tok)
-                
-                elif not collectedSubExpr:
-                    
-                    # Handle unary operators and possible unary operators separately.
-                    if tok.tokType in (TT_TILDE, TT_PLUS, TT_MINUS):
-                        
-                        pass
-
-##########################################################################################
-
-##########################################################################################
-#                        ALL POSSIBLE CHILDREN OF VAR_DECLARATION
-
-    # PARSE_EXPR ALREADY DEFINED
-
-##########################################################################################
-
-##########################################################################################
-#                          ALL POSSIBLE CHILDREN OF ASSIGN_EXPR
-
-##########################################################################################
-
-##########################################################################################
-#                              ALL POSSIBLE CHILDREN OF EXPR
-
-def parse (tokens, srcCode, fileName):
-
-    aParseTree = ParseTree(tokens, 0, srcCode = srcCode, fileName = fileName)
-    parseResult = aParseTree.parse()
-    # Return the tuple (ParseTree, syntxError or None) for the error to be handled by the caller.
-    return parseResult
+if __name__ == "__main__":
+    import sys
+    main(sys.argv)
