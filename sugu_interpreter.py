@@ -71,6 +71,7 @@ TT_DOUBLE_EQUAL              = mkConst()
 TT_PERCENT                   = mkConst()
 TT_ANDPERSAND                = mkConst()
 TT_PIPE_SYM                  = mkConst()
+TT_LINE_FILL                 = mkConst() # Used to allow comments to be on their own line within blocks.
 TT_BACKSLASH                 = mkConst()
 TT_TILDE                     = mkConst()
 TT_CARROT                    = mkConst()
@@ -165,7 +166,8 @@ TOKEN_TYPE_MAP = {
     TT_AND_EQU                   : "AND_EQU",
     TT_LSQUARE                   : "LSQUARE",
     TT_RSQUARE                   : "RSQUARE",
-    TT_DBL_COLON                 : "DBL_COLON"
+    TT_DBL_COLON                 : "DBL_COLON",
+    TT_LINE_FILL                 : "LINE_FILL",
 }
 
 # Character set constants:
@@ -529,8 +531,11 @@ class Lexer:
             elif self.char == '#':
                 commentStartIdx = self.idx # Comments are treated as newlines but they are longer than 1.
                 self.ignoreComment(multiline = False)
-                # There needs to be a newline inserted into the token stream because ignoreComment
-                # will ignore the newline at the end as well.
+                # Adding a comment line fill. This will allow comments to be on their own line without
+                # ending to block and will be ignored by the compiler in all other contexts.
+                tokens.append(Token(TT_LINE_FILL, '||', commentStartIdx, self.idx + 1, self.fileName))
+                # Adding a newline so the parser doesn't see multiple statements on a single line as
+                # this would cause a syntax error.
                 tokens.append(Token(TT_NEWLINE, '\n', commentStartIdx, self.idx + 1, self.fileName))
 
             elif self.char == '{':
@@ -538,9 +543,9 @@ class Lexer:
                     if self.srcCode[self.idx + 1] == '*':
                         commentStartIdx = self.idx
                         self.ignoreComment(multiline = True)
-                        # Adding in a newline in keeping with the convention that
-                        # comments are treated the same as newlines.
-                        tokens.append(Token(TT_NEWLINE, '\n', commentStartIdx, self.idx + 1, self.fileName))
+                        # Adding a comment line fill. This will allow comments to be on their own line without
+                        # ending to block and will be ignored by the compiler in all other contexts.
+                        tokens.append(Token(TT_LINE_FILL, '||', commentStartIdx, self.idx + 1, self.fileName))
 
                     else:
                         tokens.append(Token(TT_LCURLY, self.char, self.idx, self.idx + 1, self.fileName))
@@ -937,7 +942,10 @@ class Lexer:
               self.idx + 1,
               self.srcCode,
               self.fileName,
-              f"A dot in a member field reference must be proceeded by a valid identifier. '{wordStr}' is invalid."
+              (
+              f"A dot in a member field reference must be proceeded by a valid identifier. '{wordStr}' is invalid.\n" +
+              "    Additionally, the dots in member field references may not be proceeded or preceeded by spaces."
+              )
             ),
 
         # Yell and scream if the programmer typed a numeral at the beginning of their identifier.
