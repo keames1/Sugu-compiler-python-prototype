@@ -490,16 +490,16 @@ class Lexer:
                         aToken = Token(TT_DBL_ASTERISK, '**', self.idx, self.idx + 2, self.fileName)
                         self.toNext() # Skip over the second asterisk. It's already part of this token.
                     else:
-                        aToken = Token(TT_ASTERISK, self.char, self.idx, self.idx + 2, self.fileName)
+                        aToken = Token(TT_ASTERISK, self.char, self.idx, self.idx + 1, self.fileName)
                 else:
-                    aToken = Token(TT_ASTERISK, self.char, self.idx, self.idx + 2, self.fileName)
+                    aToken = Token(TT_ASTERISK, self.char, self.idx, self.idx + 1, self.fileName)
 
                 tokens.append(aToken)
 
             elif self.char == '/':
                 if len(self.srcCode) > self.idx + 1:
                     if self.srcCode[self.idx + 1] == '/':
-                        tokens.append(Token(TT_DBL_FWD_SLASH, '//', self.idx, self.idx + 1, self.fileName))
+                        tokens.append(Token(TT_DBL_FWD_SLASH, '//', self.idx, self.idx + 2, self.fileName))
                     else:
                         tokens.append(Token(TT_FWD_SLASH, self.char, self.idx, self.idx + 1, self.fileName))
                 else:
@@ -527,26 +527,28 @@ class Lexer:
                 tokens.append(Token(TT_PIPE_SYM, self.char, self.idx, self.idx + 1, self.fileName))
 
             elif self.char == '#':
+                commentStartIdx = self.idx # Comments are treated as newlines but they are longer than 1.
                 self.ignoreComment(multiline = False)
                 # There needs to be a newline inserted into the token stream because ignoreComment
                 # will ignore the newline at the end as well.
-                tokens.append(Token(TT_NEWLINE, '\n', self.idx, self.idx + 1, self.fileName))
+                tokens.append(Token(TT_NEWLINE, '\n', commentStartIdx, self.idx + 1, self.fileName))
 
             elif self.char == '{':
                 if len(self.srcCode) > self.idx + 1:
                     if self.srcCode[self.idx + 1] == '*':
+                        commentStartIdx = self.idx
                         self.ignoreComment(multiline = True)
                         # Adding in a newline in keeping with the convention that
                         # comments are treated the same as newlines.
-                        tokens.append(Token(TT_NEWLINE, '\n', self.idx, self.idx + 1, self.fileName))
+                        tokens.append(Token(TT_NEWLINE, '\n', commentStartIdx, self.idx + 1, self.fileName))
 
                     else:
-                        tokens.append(Token(TT_LCURLY, self.char, self.idx, self.idx +1, self.fileName))
+                        tokens.append(Token(TT_LCURLY, self.char, self.idx, self.idx + 1, self.fileName))
                 else:
-                    tokens.append(Token(TT_LCURLY, self.char, self.idx, self.idx +1, self.fileName))
+                    tokens.append(Token(TT_LCURLY, self.char, self.idx, self.idx + 1, self.fileName))
 
             elif self.char == '}':
-                if self.srcCode[self.idx - 1] == '*':
+                if self.srcCode[self.idx - 1] == '*' and self.idx > 0:
                     return None, LexError(
                       self.idx - 1,
                       self.idx + 1,
@@ -570,13 +572,10 @@ class Lexer:
 
             elif self.char == ':':
                 if self.idx > 0 and self.srcCode[self.idx - 1] == ':' and tokens[-1].tokType != TT_DBL_COLON:
-                    tokens[-1] = Token(TT_DBL_COLON, '::', self.idx, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_DBL_COLON, '::', self.idx, self.idx + 2, self.fileName)
                 
                 else:
                     tokens.append(Token(TT_COLON, self.char, self.idx, self.idx + 1, self.fileName))
-
-            elif self.char == '#':
-                tokens.append(Token(TT_OCTOTHORPE, self.char, self.idx, self.idx + 1, self.fileName))
 
             elif self.char == '$':
                 tokens.append(Token(TT_DOLLAR_SIGN, self.char, self.idx, self.idx + 1, self.fileName))
@@ -590,44 +589,44 @@ class Lexer:
                 # If there is an operator in the previous index, we want to reassign the last token
                 # to be an in place assignment operator.
                 if self.idx > 0 and self.srcCode[self.idx - 1] == '+':
-                    tokens[-1] = Token(TT_PLUS_EQU, '+=', self.idx -2, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_PLUS_EQU, '+=', self.idx - 1, self.idx + 1, self.fileName)
 
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '-':
-                    tokens[-1] = Token(TT_MINUS_EQU, '-=', self.idx -2, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_MINUS_EQU, '-=', self.idx - 1, self.idx + 1, self.fileName)
 
                 elif self.idx > 0 and self.srcCode[self.idx - 2: self.idx + 1] == '**=':
-                    tokens[-1] = Token(TT_POW_EQU, '**=', self.idx -3, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_POW_EQU, '**=', self.idx - 1, self.idx + 1, self.fileName)
 
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '*':
-                    tokens[-1] = Token(TT_TIMES_EQU, '*=', self.idx -2, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_TIMES_EQU, '*=', self.idx - 1, self.idx + 1, self.fileName)
 
                 elif self.idx > 0 and self.srcCode[self.idx - 2: self.idx + 1] == '//=':
-                    tokens[-1] = Token(TT_FLOOR_DIV_EQU, '//=', self.idx -3, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_FLOOR_DIV_EQU, '//=', self.idx - 2, self.idx + 1, self.fileName)
                     del tokens[-2]
 
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '/':
-                    tokens[-1] = Token(TT_DIV_EQU, '/=', self.idx -2, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_DIV_EQU, '/=', self.idx - 1, self.idx + 1, self.fileName)
 
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '%':
-                    tokens[-1] = Token(TT_MOD_EQU, '%=', self.idx -2, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_MOD_EQU, '%=', self.idx - 1, self.idx + 1, self.fileName)
 
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '^':
-                    tokens[-1] = Token(TT_XOR_EQU, '^=', self.idx -2, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_XOR_EQU, '^=', self.idx - 1, self.idx + 1, self.fileName)
 
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '=':
-                    tokens[-1] = Token(TT_DOUBLE_EQUAL, '==', self.idx -2, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_DOUBLE_EQUAL, '==', self.idx - 1, self.idx + 1, self.fileName)
 
                 elif self.idx > 0 and self.srcCode[self.idx - 2: self.idx + 1] == '<<=':
-                    tokens[-1] = Token(TT_LEFT_SHIFT_EQU, '<<=', self.idx - 3, self.idx + 1)
+                    tokens[-1] = Token(TT_LEFT_SHIFT_EQU, '<<=', self.idx - 2, self.idx + 1)
 
                 elif self.idx > 0 and self.srcCode[self.idx - 2: self.idx + 1] == '>>=':
-                    tokens[-1] = Token(TT_RIGHT_SHIFT_EQU, '>>=', self.idx - 3, self.idx + 1)
+                    tokens[-1] = Token(TT_RIGHT_SHIFT_EQU, '>>=', self.idx - 2, self.idx + 1)
 
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '|':
-                    tokens[-1] = Token(TT_OR_EQU, '|=', self.idx - 2, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_OR_EQU, '|=', self.idx - 1, self.idx + 1, self.fileName)
 
                 elif self.idx > 0 and self.srcCode[self.idx - 1] == '&':
-                    tokens[-1] = Token(TT_AND_EQU, '&=', self.idx - 2, self.idx + 1, self.fileName)
+                    tokens[-1] = Token(TT_AND_EQU, '&=', self.idx - 1, self.idx + 1, self.fileName)
 
                 else:
                     aToken = Token(TT_EQUAL, self.char, self.idx, self.idx + 1, self.fileName)
@@ -637,7 +636,7 @@ class Lexer:
             elif self.char == '!':
                 if len(self.srcCode) > self.idx + 1:
                     if self.srcCode[self.idx + 1] == '=':
-                        tokens.append(Token(TT_NOT_EQU, self.char + '=', self.idx, self.idx + 1, self.fileName))
+                        tokens.append(Token(TT_NOT_EQU, self.char + '=', self.idx, self.idx + 2, self.fileName))
                         self.toNext() # Skip over the equal sign. It's already part of this token.
                     else:
                         return None, LexError(
@@ -815,7 +814,7 @@ class Lexer:
             strStr += self.char
 
             # Yell and scream at the programmer if they typed an unescaped newline.
-            if strStr[-1] == '\n' and strStr[-2:] != '\\\n':
+            if strStr[-1] == '\n' and strStr[-2:] != '\\\n' and not isBlockStr:
                 return None, LexError(
                   startPos,
                   self.idx + 1,
@@ -1059,28 +1058,6 @@ class Lexer:
             return Token(TT_FLOAT, number, startPos, self.idx + 1, self.fileName), None,
         else:
             return Token(TT_INTEGER, number, startPos, self.idx + 1, self.fileName), None,
-
-# Tree type constants used for designating the type of tree being parsed. Different subtrees will call
-# different parse methods based on their assigned type.
-TR_ROOT                  =               mkConst() # The root AST.
-
-TR_ASSIGN_EXPR           =               mkConst() # The subtrees that can appear in a root tree.
-TR_VAR_DECLARATION       =               mkConst()
-TR_EXPR                  =               mkConst()
-
-# Token constants used by the parser.
-TC_NONE_TOKEN            =               Token(TT_NONE, TV_NONE())
-TC_NEWLINE               =               Token(TT_NEWLINE, TV_ANY())
-TC_SEMICOLON             =               Token(TT_NEWLINE, ';')
-TC_IDENTIFIER            =               Token(TT_IDENTIFIER, TV_ANY())
-TC_EQUAL                 =               Token(TT_EQUAL, TV_ANY())
-TC_DOLLAR_SIGN           =               Token(TT_DOLLAR_SIGN, TV_ANY())
-TC_END_OF_FILE           =               Token(TT_END_OF_FILE, TV_ANY())
-TC_KWD                   =               Token(TT_KWD, TV_ANY())
-TC_LINEFILL              =               Token(TT_PIPE_SYM, TV_ANY())
-TC_PIPE_SYM              =               TC_LINEFILL
-TC_LPAREN                =               Token(TT_LPAREN, TV_ANY())
-TC_MEMBER_FIELD_REF      =               Token(TT_MEMBER_FIELD_REF, TV_ANY())
 
 SYNTAX_ERR_TEMPLATE = """A syntax error occured in {} begininning on line {}, col {} and ending on line {}, col {}.
 
